@@ -1,5 +1,6 @@
 ﻿using Nop.Core.Caching;
 using Nop.Core.Domain.Catalog;
+using Nop.Core.Diagnostics;
 using Nop.Data;
 
 namespace Nop.Services.Catalog;
@@ -43,9 +44,15 @@ public partial class ReviewTypeService : IReviewTypeService
     /// </returns>
     public virtual async Task<IList<ReviewType>> GetAllReviewTypesAsync()
     {
-        return await _reviewTypeRepository.GetAllAsync(
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var result = await _reviewTypeRepository.GetAllAsync(
             query => query.OrderBy(reviewType => reviewType.DisplayOrder).ThenBy(reviewType => reviewType.Id),
             cache => default);
+
+        stopwatch.Stop();
+        ThesisProfilingCollector.RecordTiming(nameof(GetAllReviewTypesAsync), stopwatch.ElapsedMilliseconds);
+
+        return result;
     }
 
     /// <summary>
@@ -58,7 +65,13 @@ public partial class ReviewTypeService : IReviewTypeService
     /// </returns>
     public virtual async Task<ReviewType> GetReviewTypeByIdAsync(int reviewTypeId)
     {
-        return await _reviewTypeRepository.GetByIdAsync(reviewTypeId, cache => default);
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var result = await _reviewTypeRepository.GetByIdAsync(reviewTypeId, cache => default);
+
+        stopwatch.Stop();
+        ThesisProfilingCollector.RecordTiming(nameof(GetReviewTypeByIdAsync), stopwatch.ElapsedMilliseconds);
+
+        return result;
     }
 
     /// <summary>
@@ -106,6 +119,7 @@ public partial class ReviewTypeService : IReviewTypeService
     public virtual async Task<IList<ProductReviewReviewTypeMapping>> GetProductReviewReviewTypeMappingsByProductReviewIdAsync(
         int productReviewId)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var key = _staticCacheManager.PrepareKeyForDefaultCache(NopCatalogDefaults.ProductReviewTypeMappingByReviewIdCacheKey, productReviewId);
 
         var query = from pam in _productReviewReviewTypeMappingRepository.Table
@@ -114,6 +128,9 @@ public partial class ReviewTypeService : IReviewTypeService
             select pam;
 
         var productReviewReviewTypeMappings = await _staticCacheManager.GetAsync(key, async () => await query.ToListAsync());
+
+        stopwatch.Stop();
+        ThesisProfilingCollector.RecordTiming(nameof(GetProductReviewReviewTypeMappingsByProductReviewIdAsync), stopwatch.ElapsedMilliseconds);
 
         return productReviewReviewTypeMappings;
     }

@@ -1,4 +1,5 @@
 ﻿using Nop.Core;
+using Nop.Core.Diagnostics;
 using Nop.Core.Domain.Catalog;
 using Nop.Core.Domain.Localization;
 using Nop.Core.Domain.Orders;
@@ -218,6 +219,7 @@ public partial class ProductReviewService : IProductReviewService
         string message = null, int storeId = 0, int productId = 0, int vendorId = 0, bool showHidden = false,
         int pageIndex = 0, int pageSize = int.MaxValue)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var productReviews = await _productReviewRepository.GetAllPagedAsync(async query =>
         {
             if (!showHidden)
@@ -263,6 +265,9 @@ public partial class ProductReviewService : IProductReviewService
 
             return query;
         }, pageIndex, pageSize);
+
+        stopwatch.Stop();
+        ThesisProfilingCollector.RecordTiming(nameof(GetAllProductReviewsAsync), stopwatch.ElapsedMilliseconds);
 
         return productReviews;
     }

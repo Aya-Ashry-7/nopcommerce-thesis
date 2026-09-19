@@ -3,6 +3,7 @@ using Nop.Web.Areas.Admin.Factories;
 using Nop.Web.Areas.Admin.Helpers;
 using Nop.Web.Framework.Factories;
 using Nop.Web.Infrastructure.Installation;
+using Nop.Web.Infrastructure.Thesis;
 
 namespace Nop.Web.Infrastructure;
 
@@ -18,6 +19,13 @@ public partial class NopStartup : INopStartup
     /// <param name="configuration">Configuration of the application</param>
     public virtual void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
+        var thesisProfilingSettings = new ThesisProfilingSettings();
+        configuration.GetSection("ThesisProfiling").Bind(thesisProfilingSettings, options => options.BindNonPublicProperties = true);
+        services.AddSingleton(thesisProfilingSettings);
+        services.AddScoped<ISqlCountingScope, SqlCountingScope>();
+        services.AddScoped<IMeasurementWriter, MeasurementWriter>();
+        services.AddScoped<IThesisReviewDatasetService, ThesisReviewDatasetService>();
+
         //installation localization service
         services.AddScoped<IInstallationLocalizationService, InstallationLocalizationService>();
 

@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Text.Encodings.Web;
 using Nop.Core;
+using Nop.Core.Diagnostics;
 using Nop.Core.Domain.Catalog;
 using Nop.Core.Domain.Forums;
 using Nop.Core.Events;
@@ -151,6 +152,7 @@ public partial class JsonLdModelFactory : IJsonLdModelFactory
     /// </returns>
     public virtual async Task<JsonLdProductModel> PrepareJsonLdProductAsync(ProductDetailsModel model, string productUrl = null)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         productUrl ??= await _nopUrlHelper.RouteGenericUrlAsync<Product>(new { SeName = model.SeName }, _webHelper.GetCurrentRequestProtocol());
 
         var productPrice = model.AssociatedProducts.Any()
@@ -208,6 +210,9 @@ public partial class JsonLdModelFactory : IJsonLdModelFactory
         }
 
         await _eventPublisher.PublishAsync(new JsonLdCreatedEvent<JsonLdProductModel>(product));
+
+        stopwatch.Stop();
+        ThesisProfilingCollector.RecordTiming(nameof(PrepareJsonLdProductAsync), stopwatch.ElapsedMilliseconds);
 
         return product;
     }
