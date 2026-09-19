@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Thesis profiling runtime artifacts
+Presentation/Nop.Web/App_Data/ThesisProfiling/measurements.jsonl
+Presentation/Nop.Web/App_Data/ThesisProfiling/dataset-manifest.json

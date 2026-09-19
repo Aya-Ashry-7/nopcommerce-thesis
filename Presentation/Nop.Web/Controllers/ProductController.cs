@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Nop.Core.Diagnostics;
 using Nop.Core;
 using Nop.Core.Domain.Catalog;
 using Nop.Core.Domain.Localization;
@@ -22,6 +23,7 @@ using Nop.Web.Framework.Controllers;
 using Nop.Web.Framework.Mvc.Filters;
 using Nop.Web.Framework.Mvc.Routing;
 using Nop.Web.Models.Catalog;
+using Nop.Web.Infrastructure.Thesis;
 
 namespace Nop.Web.Controllers;
 
@@ -49,15 +51,18 @@ public partial class ProductController : BasePublicController
     protected readonly IProductService _productService;
     protected readonly IRecentlyViewedProductsService _recentlyViewedProductsService;
     protected readonly IReviewTypeService _reviewTypeService;
+    protected readonly ISqlCountingScope _sqlCountingScope;
     protected readonly IShoppingCartModelFactory _shoppingCartModelFactory;
     protected readonly IShoppingCartService _shoppingCartService;
     protected readonly IStoreContext _storeContext;
     protected readonly IStoreMappingService _storeMappingService;
     protected readonly IWorkContext _workContext;
     protected readonly IWorkflowMessageService _workflowMessageService;
+    protected readonly IMeasurementWriter _measurementWriter;
     protected readonly LocalizationSettings _localizationSettings;
     protected readonly ShoppingCartSettings _shoppingCartSettings;
     protected readonly ShippingSettings _shippingSettings;
+    protected readonly ThesisProfilingSettings _thesisProfilingSettings;
 
     #endregion
 
@@ -82,15 +87,18 @@ public partial class ProductController : BasePublicController
         IProductService productService,
         IRecentlyViewedProductsService recentlyViewedProductsService,
         IReviewTypeService reviewTypeService,
+        ISqlCountingScope sqlCountingScope,
         IShoppingCartModelFactory shoppingCartModelFactory,
         IShoppingCartService shoppingCartService,
         IStoreContext storeContext,
         IStoreMappingService storeMappingService,
         IWorkContext workContext,
         IWorkflowMessageService workflowMessageService,
+        IMeasurementWriter measurementWriter,
         LocalizationSettings localizationSettings,
         ShoppingCartSettings shoppingCartSettings,
-        ShippingSettings shippingSettings)
+        ShippingSettings shippingSettings,
+        ThesisProfilingSettings thesisProfilingSettings)
     {
         _captchaSettings = captchaSettings;
         _catalogSettings = catalogSettings;
@@ -111,15 +119,18 @@ public partial class ProductController : BasePublicController
         _productService = productService;
         _reviewTypeService = reviewTypeService;
         _recentlyViewedProductsService = recentlyViewedProductsService;
+        _sqlCountingScope = sqlCountingScope;
         _shoppingCartModelFactory = shoppingCartModelFactory;
         _shoppingCartService = shoppingCartService;
         _storeContext = storeContext;
         _storeMappingService = storeMappingService;
         _workContext = workContext;
         _workflowMessageService = workflowMessageService;
+        _measurementWriter = measurementWriter;
         _localizationSettings = localizationSettings;
         _shoppingCartSettings = shoppingCartSettings;
         _shippingSettings = shippingSettings;
+        _thesisProfilingSettings = thesisProfilingSettings;
     }
 
     #endregion
@@ -128,6 +139,12 @@ public partial class ProductController : BasePublicController
 
     public virtual async Task<IActionResult> ProductDetails(int productId, int updatecartitemid = 0, int? customwishlistid = null)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        using var sqlScope = _sqlCountingScope.BeginScope();
+        using var profilingScope = _thesisProfilingSettings.Enabled
+            ? ThesisProfilingCollector.BeginScope(_thesisProfilingSettings.Scenario, _thesisProfilingSettings.DatasetTier, productId)
+            : null;
+
         var product = await _productService.GetProductByIdAsync(productId);
         if (product == null || product.Deleted)
             return InvokeHttp404();
@@ -200,6 +217,35 @@ public partial class ProductController : BasePublicController
         var model = await _productModelFactory.PrepareProductDetailsModelAsync(product, updatecartitem, false);
         //template
         var productTemplateViewPath = await _productModelFactory.PrepareProductTemplateViewPathAsync(product);
+
+        stopwatch.Stop();
+        ThesisProfilingCollector.RecordTiming(nameof(ProductDetails), stopwatch.ElapsedMilliseconds);
+
+        if (_thesisProfilingSettings.Enabled && ThesisProfilingCollector.IsActive)
+        {
+            var profilingSnapshot = ThesisProfilingCollector.GetSnapshot();
+            var sqlSnapshot = _sqlCountingScope.GetSnapshot();
+
+            var measurementRecord = new MeasurementRecord
+            {
+                MeasuredOnUtc = DateTime.UtcNow,
+                CommitSha = Environment.GetEnvironmentVariable("GITHUB_SHA") ?? "unknown",
+                Scenario = profilingSnapshot.Scenario,
+                DatasetTier = profilingSnapshot.DatasetTier,
+                ProductId = profilingSnapshot.ProductId,
+                ReviewCount = profilingSnapshot.Metrics.TryGetValue("ProductReviews.Count", out var reviewCount) ? reviewCount : null,
+                TimingsMs = new Dictionary<string, long>(profilingSnapshot.TimingsMs),
+                TotalSqlCommandCount = sqlSnapshot.TotalCommandCount,
+                ReviewSqlCommandCount = sqlSnapshot.ReviewCommandCount,
+                ResponseSizeBytes = HttpContext.Response.ContentLength,
+                MachineSpecification = $"{Environment.MachineName}; {Environment.OSVersion}",
+                SqlServerVersion = "Collect at runtime",
+                BrowserVersion = "Collect in browser profiler",
+                ApplicationConfiguration = $"Scenario={_thesisProfilingSettings.Scenario};Tier={_thesisProfilingSettings.DatasetTier}"
+            };
+
+            await _measurementWriter.WriteMeasurementAsync(measurementRecord);
+        }
 
         return View(productTemplateViewPath, model);
     }

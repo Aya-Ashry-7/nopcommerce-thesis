@@ -1,4 +1,5 @@
 ﻿using System.Data.Common;
+using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
 using FluentMigrator;
@@ -9,6 +10,7 @@ using LinqToDB.Tools;
 using Nop.Core;
 using Nop.Core.Infrastructure;
 using Nop.Data.Configuration;
+using Nop.Data.Diagnostics;
 using Nop.Data.Mapping;
 using Nop.Data.Migrations;
 
@@ -46,6 +48,19 @@ public abstract partial class BaseDataProvider
         {
             CommandTimeout = DataSettingsManager.GetSqlCommandTimeout()
         };
+
+        if (ThesisSqlCommandObserver.IsActive)
+        {
+            var existingTraceHandler = dataConnection.OnTraceConnection;
+            DataConnection.TurnTraceSwitchOn(TraceLevel.Verbose);
+            dataConnection.OnTraceConnection = traceInfo =>
+            {
+                if (traceInfo.TraceInfoStep is TraceInfoStep.AfterExecute or TraceInfoStep.Error)
+                    ThesisSqlCommandObserver.ObserveCommand(traceInfo.CommandText ?? traceInfo.SqlText);
+
+                existingTraceHandler?.Invoke(traceInfo);
+            };
+        }
 
         return dataConnection;
     }

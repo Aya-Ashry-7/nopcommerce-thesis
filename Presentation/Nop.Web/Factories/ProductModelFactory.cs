@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Newtonsoft.Json;
 using Nop.Core;
 using Nop.Core.Caching;
+using Nop.Core.Diagnostics;
 using Nop.Core.Domain.Catalog;
 using Nop.Core.Domain.Customers;
 using Nop.Core.Domain.Media;
@@ -641,6 +642,7 @@ public partial class ProductModelFactory : IProductModelFactory
     /// </returns>
     protected virtual async Task<ProductReviewOverviewModel> PrepareProductReviewOverviewModelAsync(Product product)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         ProductReviewOverviewModel productReview;
         var currentStore = await _storeContext.GetCurrentStoreAsync();
 
@@ -675,6 +677,9 @@ public partial class ProductModelFactory : IProductModelFactory
             productReview.CanCurrentCustomerLeaveReview = _catalogSettings.AllowAnonymousUsersToReviewProduct || !await _customerService.IsGuestAsync(await _workContext.GetCurrentCustomerAsync());
             productReview.CanAddNewReview = await _productReviewService.CanAddReviewAsync(product.Id, _catalogSettings.ShowProductReviewsPerStore ? currentStore.Id : 0);
         }
+
+        stopwatch.Stop();
+        ThesisProfilingCollector.RecordTiming(nameof(PrepareProductReviewOverviewModelAsync), stopwatch.ElapsedMilliseconds);
 
         return productReview;
     }
@@ -1480,6 +1485,7 @@ public partial class ProductModelFactory : IProductModelFactory
     public virtual async Task<ProductDetailsModel> PrepareProductDetailsModelAsync(Product product,
         ShoppingCartItem updatecartitem = null, bool isAssociatedProduct = false)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         ArgumentNullException.ThrowIfNull(product);
 
         //standard properties
@@ -1719,6 +1725,9 @@ public partial class ProductModelFactory : IProductModelFactory
             model.JsonLd = JsonConvert.SerializeObject(jsonLdModel, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
         }
 
+        stopwatch.Stop();
+        ThesisProfilingCollector.RecordTiming(nameof(PrepareProductDetailsModelAsync), stopwatch.ElapsedMilliseconds);
+
         return model;
     }
 
@@ -1732,6 +1741,7 @@ public partial class ProductModelFactory : IProductModelFactory
     /// </returns>
     public virtual async Task<ProductReviewsModel> PrepareProductReviewsModelAsync(Product product)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         ArgumentNullException.ThrowIfNull(product);
 
         var model = new ProductReviewsModel
@@ -1851,6 +1861,10 @@ public partial class ProductModelFactory : IProductModelFactory
         model.AddProductReview.DisplayCaptcha = _captchaSettings.Enabled && _captchaSettings.ShowOnProductReviewPage;
         model.AddProductReview.CanAddNewReview = await _productReviewService.CanAddReviewAsync(product.Id, _catalogSettings.ShowProductReviewsPerStore ? currentStore.Id : 0);
         model.AddProductReview.Rating = _catalogSettings.DefaultProductRatingValue;
+
+        stopwatch.Stop();
+        ThesisProfilingCollector.RecordTiming(nameof(PrepareProductReviewsModelAsync), stopwatch.ElapsedMilliseconds);
+        ThesisProfilingCollector.SetMetric("ProductReviews.Count", model.Items.Count);
 
         return model;
     }

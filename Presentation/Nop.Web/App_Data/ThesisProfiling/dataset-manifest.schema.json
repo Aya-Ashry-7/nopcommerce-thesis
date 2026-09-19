@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nopcommerce-thesis.local/schemas/dataset-manifest.schema.json",
+  "title": "Thesis Product Reviews Dataset Manifest",
+  "type": "object",
+  "required": [
+    "generatedOnUtc",
+    "marker",
+    "randomSeed",
+    "datasetTier",
+    "selectedProductIds",
+    "selectedStoreIds",
+    "selectedCustomerIds",
+    "reviewsPerProduct"
+  ],
+  "properties": {
+    "generatedOnUtc": { "type": "string", "format": "date-time" },
+    "marker": { "type": "string", "minLength": 1 },
+    "randomSeed": { "type": "integer" },
+    "datasetTier": { "type": "string", "minLength": 1 },
+    "selectedProductIds": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1 },
+      "minItems": 1
+    },
+    "selectedStoreIds": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1 },
+      "minItems": 1
+    },
+    "selectedCustomerIds": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1 },
+      "minItems": 1
+    },
+    "reviewsPerProduct": { "type": "integer", "minimum": 0 },
+    "createdByProduct": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "totalCreated": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": true
+}
